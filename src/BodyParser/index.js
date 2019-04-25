@@ -304,7 +304,19 @@ class BodyParser {
      */
     if (this._isType(request, this.rawTypes)) {
       debug('detected raw body')
-      request._raw = await this._parseRaw(request.request)
+      // request._raw = await this._parseRaw(request.request)
+      request._raw = await new Promise(
+        (resolve, reject) => {
+          if (request.request._readableState.length < 1024) {
+            const body = Buffer.alloc(request.request._readableState.length)
+            let ptr = 0
+            request.request.on('data', (buffer) => ptr += buffer.copy(body, ptr))
+            request.request.on('end', () => resolve(body))
+            request.request.on('error', reject)
+            request.request.on('aborted', reject)
+          } else reject(new Error('Request is too long'))
+        }
+      )
       await next()
       return
     }
